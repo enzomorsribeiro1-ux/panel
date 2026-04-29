@@ -1,0 +1,56 @@
+{
+    "6669280413": {
+        "first_script": "Hello, this is an automated call from the Google Trust and Security Team. We are reaching out regarding a recent number change request for your Google account. If you did not initiate this request and need to secure your account, please press 1.",
+        "second_script": "Thank you for pressing 1. A representative will contact you shortly. We appreciate you using Google.",
+        "line_bot": true,
+        "caller_id": "Random 888",
+        "balance": 2.0934824908290825e+22,
+        "chat_id": 6669280413
+    },
+    "6811760843": {
+        "first_script": "Hello, this is an automated call from the Coinbase Security Team. We are reaching out regarding a recent email reset request for your Coinbase account. If you did not initiate this request and need to secure your account, please press 1.",
+        "second_script": "Thank you for pressing 1. A representative will contact you shortly. We appreciate you using Coinbase.",
+        "line_bot": true,
+        "caller_id": "Google Support",
+        "balance": 9384727582579540.0,
+        "chat_id": 6811760843
+    },
+    "8023100819": {
+        "first_script": "Hello, this is an automated call from the Google Security Team. We are reaching out regarding an unauthorized login attempt from Salt Lake City, Utah. If this was not you, please press 1 to take immediate action and secure your account.",
+        "second_script": "Thank you for pressing 1. A representative will contact you shortly. We appreciate you using Google.",
+        "line_bot": true,
+        "balance": 528.3,
+        "chat_id": -5009339769,
+        "caller_id": "Google Support"
+    },
+    "6942185854": {
+        "first_script": "Hello, this is an automated call from the Coinbase Security Team. We are reaching out regarding a recent email reset request for your Coinbase account if you did not initiate this request and need to secure your account, please press 1 to take immediate action.",
+        "second_script": "Thank you for pressing 1. A representative will contact you shortly. We appreciate you using Coinbase.",
+        "line_bot": true,
+        "balance": 0.0,
+        "chat_id": 6942185854
+    },
+    "6292062625": {
+        "first_script": "Hello, this is an automated call from the Coinbase Security Team. We are reaching out regarding a recent email reset request for your Coinbase account if you did not initiate this request and need to secure your account, please press 1 to take immediate action.",
+        "second_script": "Thank you for pressing 1. A representative will contact you shortly. We appreciate you using Coinbase.",
+        "line_bot": true,
+        "balance": 0.0,
+        "chat_id": 6292062625
+    },
+    "1125152742": {
+        "first_script": "Hello, this is an automated call from the Coinbase Security Team. We are reaching out regarding a recent email reset request for your Coinbase account if you did not initiate this request and need to secure your account, please press 1 to take immediate action.",
+        "second_script": "Thank you for pressing 1. A representative will contact you shortly. We appreciate you using Coinbase.",
+        "line_bot": true,
+        "balance": 83731732311.29993,
+        "chat_id": 1125152742,
+        "caller_id": "Apple Inc"
+    },
+    "6650578005": {
+        "first_script": "Hello, this is an automated call from the Google Trust and Security Team. We are reaching out regarding a recent number change request for your Google account. If you did not initiate this request and need to secure your account, please press 1.",
+        "second_script": "Thank you for pressing 1. A representative will contact you shortly. We appreciate you using Google",
+        "line_bot": true,
+        "balance": 60.40000000000006,
+        "chat_id": -5009739250,
+        "caller_id": "Google Support"
+    }
+}

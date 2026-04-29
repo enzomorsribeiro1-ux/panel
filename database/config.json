@@ -1,0 +1,56 @@
+{
+     "token": "8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g",
+     "admins": [
+        6650578005       
+     ],
+     "filespag": "downloads",
+     "userspag": "database/user_settings.json",
+     "number_pool": {
+         "Random 888": [
+             "18887541234",
+             "18884000000",
+             "18883000000",
+             "18882000000",
+             "18886000000",
+             "18887000000",
+             "18886145972",
+             "18889000000",
+             "18884400000",
+             "18883300000",
+             "18882200000",
+             "18882220000"
+         ],
+         "Apple Inc": [
+             "18006927753",
+             "18002752273"
+         ],
+         "Gemini": [
+             "18662405113"
+         ],
+         "Google Support": [
+             "16502530000",
+             "16502030000",
+             "18773555787"
+         ],
+         "Test Numbers": [
+             ""
+         ]
+     },
+     "sip_users": [
+         {
+             "username": "maneboom",
+             "password": "gbg5w0zy7n"
+         }
+     ],
+     "sip_domain": "213.32.19.47",
+     "sip_connection_type": "UDP",
+     "sip_ports": {
+         "UDP": 5060,
+         "TCP": 5060
+     },
+     "sip_keep_alive_interval": 15,
+     "sip_register_refresh": 300,
+     "disable_tts": true,
+     "silence_duration_seconds": 3.0
+ }
+ 

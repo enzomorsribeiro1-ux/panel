@@ -1,0 +1,60 @@
+eDrive\Escritorio\srcs\module_old_p1>python bot.py
+webhook url ->: http://localhost:8000/webhook
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/getMe "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/deleteWebhook "HTTP/1.1 200 OK"
+INFO:telegram.ext.Application:Application started
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/answerCallbackQuery "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/editMessageText "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/getFile "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://api.telegram.org/file/bot8589348030%3AAAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/documents/file_26.txt "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/sendMessage "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/getUpdates "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/answerCallbackQuery "HTTP/1.1 200 OK"
+INFO:root:Attempting to register SIP account maneboom...
+INFO:root:SIP registration attempt 1...
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/editMessageText "HTTP/1.1 200 OK"
+DEBUG:pysip.utils.logger:Successful UDP connection has been made.
+2026-04-28 22:24:59,617 - pysip.utils.logger - INFO - Starting initial registration for maneboom
+INFO:pysip.utils.logger:Starting initial registration for maneboom
+DEBUG:pysip.utils.logger:Keep-alive message received from the server. sending OK
+DEBUG:pysip.utils.logger:Keep-alive OPTIONS sent
+DEBUG:pysip.utils.logger:Register message has been sent to the server
+DEBUG:pysip.utils.logger:Keep-alive message received from the server. sending OK
+INFO:root:SIP account maneboom successfully registered on attempt 1!
+INFO:root:SIP maneboom ready — 1 unique numbers to dial with provider-assigned random caller IDs.
+INFO:root:TTS audio will be generated on-demand during calls
+INFO:root:Loaded pre-recorded WAV files successfully.
+INFO:root:Processing 1 numbers in 1 batches of up to 20 numbers each
+INFO:root:Concurrent calls per batch (initial): 10, delay between batches: 25s
+INFO:root:Starting batch 1/1 with 1 numbers
+INFO:root:Waiting for 1 calls in batch 1 to complete...
+2026-04-28 22:25:00,207 - pysip.utils.logger - INFO - Sip Account: maneboom registered to the server.
+INFO:pysip.utils.logger:Sip Account: maneboom registered to the server.
+INFO:root:[START] Calling +16503365606 with caller ID 18773555787
+2026-04-28 22:25:01,748 - pysip.utils.logger - INFO - CallHandler has been initialized..
+INFO:pysip.utils.logger:CallHandler has been initialized..
+DEBUG:pysip.utils.logger:Dialog state changed to -> DialogState.INITIAL
+DEBUG:pysip.utils.logger:Call state changed to -> CallState.DIALING
+DEBUG:pysip.utils.logger:Sent INVITE request to the server
+INFO:root:[+16503365606] Waiting for call to be answered... [META-DATA: {"initiator_user_id": "6650578005", "initiator_chat_id": -5009739250, "timestamp": "2026-04-28T22:24:59.002339", "target_number": "+16503365606"}]
+DEBUG:pysip.utils.logger:Dialog state changed to -> DialogState.EARLY
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot8589348030:AAGgkt9mvrw5I0cQP8_3IEDTlfrdQB9q35g/getUpdates "HTTP/1.1 200 OK"
+DEBUG:pysip.utils.logger:INVITE Successfull, dialog is established.
+DEBUG:pysip.utils.logger:Updated remote contact URI: sip:+16503365606@213.32.19.47:5060
+DEBUG:pysip.utils.logger:Dialog state changed to -> DialogState.CONFIRMED
+DEBUG:pysip.utils.logger:Done spawned _rtp_task in the background
+DEBUG:pysip.utils.logger:Call state changed to -> CallState.ANSWERED
+DEBUG:pysip.utils.logger:Establishing RTP Connection: LOCAL: 192.168.1.2:10155 -- SERVER: 213.32.19.47:13716
+INFO:root:[+16503365606] Call answered, now playing first script [META-DATA: {"initiator_user_id": "6650578005", "initiator_chat_id": -5009739250, "timestamp": "2026-04-28T22:24:59.002339", "target_number": "+16503365606"}]
+DEBUG:pysip.utils.logger:Started stream now - id (19664709-238b-4c45-a176-0ad63406fc73)
+DEBUG:pysip.utils.logger:Done preparing all frames in AudioStream
+INFO:root:[+16503365606] First script completed successfully [META-DATA: {"initiator_user_id": "6650578005", "initiator_chat_id": -5009739250, "timestamp": "2026-04-28T22:24:59.002339", "target_number": "+16503365606"}]
+DEBUG:pysip.utils.logger:Set new stream with id: 19664709-238b-4c45-a176-0ad63406fc73
+2026-04-28 22:25:10,733 - pysip.utils.logger - INFO - Started to wait for DTMF
+INFO:pysip.utils.logger:Started to wait for DTMF
+DEBUG:pysip.utils.logger:Keep-alive message received from the server. sending OK
+DEBUG:pysip.utils.logger:Keep-alive OPTIONS sent
