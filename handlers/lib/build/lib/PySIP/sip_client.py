@@ -1,0 +1,514 @@
+import asyncio
+import logging
+from typing import Callable, Dict, List
+import uuid
+import random
+
+from .sip_call import SipCall
+from .utils.retry_handler import RetryHandler
+
+from .sip_core import SipCore, SipMessage, Counter
+from .filters import SIPCompatibleMethods, SIPStatus, ConnectionType
+from .utils.logger import logger
+from .exceptions import NoPasswordFound, OperationTimeout, SIPError
+
+
+__all__ = ["SipClient"]
+
+
+class SipClient:
+    def __init__(
+        self,
+        username,
+        server,
+        connection_type: str,
+        password: str,
+        *,
+        register_duration=600,
+        caller_id="",
+        sip_core=None,
+    ):
+        self.username = username
+        try:
+            self.server = server.split(":")[0]
+            self.port = server.split(":")[1]
+        except IndexError:
+            self.port = 5060
+        self.server = self.server + ":" + str(self.port)
+
+        if password:
+            self.password = password
+        else:
+            raise NoPasswordFound(
+                "No password was provided please provide password to use for Digest auth."
+            )
+
+        self.CTS = "TLS" if "TLS" in connection_type else connection_type
+        self.connection_type = ConnectionType(connection_type)
+        self.reader, self.writer = None, None
+        self.all_tasks: List[asyncio.Task] = []
+        self.sip_core = (
+            sip_core
+            if sip_core is not None
+            else SipCore(self.username, self.server, connection_type, password)
+        )
+        self.call_id = self.sip_core.gen_call_id()
+        self.sip_core.on_message_callbacks.append(self.message_handler)
+        self.register_counter = Counter(random.randint(1, 2000))
+        self.register_tags = {"local_tag": "", "remote_tag": "", "type": "", "cseq": 0}
+        self.registered: asyncio.Future = asyncio.Future()
+        self.unregistered = asyncio.Event()
+        self.register_duration = register_duration
+        self.caller_id = caller_id if caller_id else username
+        self.my_public_ip = None
+        self.my_private_ip = None
+        self._callbacks: Dict[str, List[Callable]] = {}
+        self.retry_handler = RetryHandler()
+
+    async def run(self):
+        register_task = None
+        receive_task = None
+        tasks = []
+        try:
+            self.my_public_ip = await asyncio.to_thread(self.sip_core.get_public_ip)
+            self.my_private_ip = await asyncio.to_thread(self.sip_core.get_local_ip)
+
+            if (
+                not self.sip_core.is_running.is_set()
+                and not self.sip_core._is_connecting.is_set()
+            ):
+                # only connect if it is not already connected
+                await self.sip_core.connect()
+
+            elif self.sip_core._is_connecting.is_set():
+                await self.sip_core.is_running.wait()
+
+            register_task = asyncio.create_task(
+                self.periodic_register(self.register_duration), name="Periodic Register"
+            )
+            tasks.append(register_task)
+            if not self.sip_core.receive_task:
+                receive_task = asyncio.create_task(
+                    self.sip_core.receive(), name="Receive Messages Task"
+                )
+                self.sip_core.receive_task = receive_task
+                tasks.append(self.sip_core.receive_task)
+
+            try:
+                self.all_tasks.extend(tasks)
+                await asyncio.gather(*tasks)
+            except asyncio.CancelledError:
+                if receive_task.done():
+                    pass
+                if asyncio.current_task() and asyncio.current_task().cancelling() > 0:
+                    raise
+
+        except Exception as e:
+            logger.log(logging.ERROR, e, exc_info=True)
+            return
+
+        finally:
+
+            if register_task and not register_task.done():
+                register_task.cancel()
+                try:
+                    await register_task
+                except asyncio.CancelledError:
+                    pass  # Task cancellation is expected
+
+            if receive_task and not receive_task.done():
+                receive_task.cancel()
+                try:
+                    await receive_task
+                except asyncio.CancelledError:
+                    pass  # Task cancellation is expected
+
+    async def stop(self):
+        unregister = self.build_register_message(unregister=True)
+        await self.sip_core.send(unregister)
+        try:
+            await asyncio.wait_for(self.unregistered.wait(), 4)
+            logger.log(
+                logging.INFO,
+                "Sip Account: %s has been de-registered from the server",
+                self.username,
+            )
+        except asyncio.TimeoutError:
+            logger.log(
+                logging.WARNING, "Failed to de-register Sip Account: %s", self.username
+            )
+
+        self.sip_core.is_running.clear()
+        await self.sip_core.close_connections()
+        self.registered = asyncio.Future()
+
+    async def periodic_register(self, delay: float):
+        # Start keep-alive task
+        keep_alive_task = asyncio.create_task(self.keep_alive_loop())
+        self.all_tasks.append(keep_alive_task)
+        
+        # Initial registration
+        logger.log(logging.INFO, f"Starting initial registration for {self.username}")
+        await self.register()
+        
+        while True:
+            # Wait for the delay period
+            sleep_task = asyncio.create_task(asyncio.sleep(delay - 5))
+            event_cleared_task = asyncio.create_task(
+                self.wait_for_event_clear(self.sip_core.is_running)
+            )
+            self.all_tasks.extend([sleep_task, event_cleared_task])
+
+            _, pending = await asyncio.wait(
+                [sleep_task, event_cleared_task], return_when="FIRST_COMPLETED"
+            )
+
+            for task in pending:
+                task.cancel()
+
+            if not self.sip_core.is_running.is_set():
+                break
+                
+            # Send periodic re-registration (not full register method)
+            logger.log(logging.DEBUG, f"Sending periodic re-registration for {self.username}")
+            await self._send_register()
+
+        logger.log(
+            logging.DEBUG,
+            "The app will no longer register. Registeration task stopped.",
+        )
+    
+    async def keep_alive_loop(self):
+        """Send keep-alive OPTIONS messages every 15 seconds"""
+        while True:
+            if not self.sip_core.is_running.is_set():
+                break
+                
+            try:
+                await self.ping()
+                logger.log(logging.DEBUG, "Keep-alive OPTIONS sent")
+            except Exception as e:
+                logger.log(logging.WARNING, f"Keep-alive failed: {e}")
+            
+            await asyncio.sleep(15)  # Send every 15 seconds
+
+    async def wait_for_event_clear(self, event: asyncio.Event):
+        while True:
+            if not event.is_set():
+                break
+
+            await asyncio.sleep(0.1)
+
+    async def check_connection_type(self):
+        self.my_public_ip = await asyncio.to_thread(self.sip_core.get_public_ip)
+        self.my_private_ip = await asyncio.to_thread(self.sip_core.get_local_ip)
+
+        connection_types = [
+            ConnectionType.UDP,
+            ConnectionType.TCP,
+            ConnectionType.TLS,
+            ConnectionType.TLSv1,
+        ]
+        found_connections = [ConnectionType.UDP]
+        found_connections.clear()
+
+        for con in connection_types:
+            self.sip_core.is_running.clear()
+            self.sip_core.connection_type = con
+            self.connection_type = con
+            self.sip_core.port = (
+                5061 if con in [ConnectionType.TLS, ConnectionType.TLSv1] else 5060
+            )
+            try:
+                await self.sip_core.connect()
+            except Exception:
+                continue
+            await self.register()
+
+            reader = self.sip_core.udp_reader or self.sip_core.reader
+            if not reader:
+                return found_connections
+            try:
+                _ = await asyncio.wait_for(reader.read(), 1)
+                found_connections.append(con)
+            except asyncio.TimeoutError:
+                continue
+        return found_connections
+
+    def build_register_message(
+        self, auth=False, received_message=None, unregister=False
+    ):
+        """
+        Build a SIP REGISTER message with or without authentication.
+        """
+        # Generate unique identifiers for the message
+        branch_id = str(uuid.uuid4()).upper()
+        # Initialize transaction
+        call_id = self.call_id
+
+        # Start building the SIP message based on authentication need
+        if auth:
+            # Handling authenticated REGISTER request
+            unregister = True if self.register_tags["type"] == "UNREGISTER" else False
+            if not received_message:
+                return
+            nonce = received_message.nonce
+            realm = received_message.realm
+            cseq = self.register_counter.current()
+            self.register_tags["cseq"] = cseq
+            uri = f"sip:{self.server};transport={self.CTS}"
+
+            # Check for qop in WWW-Authenticate header
+            qop = received_message.qop
+            nc = None
+            cnonce = None
+            auth_header = received_message.get_header("WWW-Authenticate")
+            if auth_header and qop:
+                nc = "00000001"  # Initial nonce count
+                cnonce = "".join(
+                    random.choices("0123456789abcdef", k=16)
+                )  # Random cnonce
+
+            # Generate response with appropriate parameters
+            response = self.sip_core.generate_response(
+                method="REGISTER",
+                nonce=nonce,
+                realm=realm,
+                uri=uri,
+                qop=qop,
+                nc=nc,
+                cnonce=cnonce,
+            )
+
+            # Adjust Via and Contact headers for public IP and port if available
+            my_public_ip = self.my_public_ip
+            ip = received_message.public_ip if not my_public_ip else my_public_ip
+            port = received_message.rport
+            from_tag = self.register_tags["local_tag"]
+            expires = ";expires=0" if unregister else ""
+            expires_field = (
+                f"Expires: {self.register_duration}\r\n" if not unregister else ""
+            )
+
+            # Build Authorization header based on qop presence
+            auth_header = (
+                f'Authorization: Digest username="{self.username}", '
+                f'realm="{realm}", '
+                f'nonce="{nonce}", '
+                f'uri="{uri}", '
+                f'response="{response}", '
+                f'algorithm="MD5"'
+            )
+
+            if qop:
+                auth_header += f', qop=auth, nc={nc}, cnonce="{cnonce}"'
+            auth_header += "\r\n"
+
+            # Construct the complete REGISTER request with Authorization header
+            msg = (
+                f"REGISTER sip:{self.server};transport={self.CTS} SIP/2.0\r\n"
+                f"Via: SIP/2.0/{self.CTS} {ip}:{port};rport;branch={received_message.branch};alias\r\n"
+                f"Max-Forwards: 70\r\n"
+                f"From: <sip:{self.caller_id}@{self.server}>;tag={from_tag}\r\n"
+                f"To: <sip:{self.username}@{self.server}>\r\n"
+                f"Call-ID: {call_id}\r\n"
+                f"CSeq: {cseq} REGISTER\r\n"
+                f"Contact: <sip:{self.username}@{ip}:{port};transport={self.CTS}>{expires}\r\n"
+                f"{expires_field}"
+                f"{auth_header}"
+                f"Content-Length: 0\r\n\r\n"
+            )
+        else:
+            # Handling unauthenticated REGISTER request
+            ip = self.my_private_ip
+            port = self.port
+            _, my_public_port = self.sip_core.get_extra_info("sockname")
+            if not self.register_tags["local_tag"]:
+                self.register_tags["local_tag"] = self.sip_core.generate_tag()
+
+            cseq = next(self.register_counter)
+            expires = ";expires=0" if unregister else ""
+            expires_field = (
+                f"Expires: {self.register_duration}\r\n" if not unregister else ""
+            )
+            self.register_tags["type"] = "UNREGISTER" if unregister else "REGISTER"
+
+            # Construct the REGISTER request without Authorization header
+            msg = (
+                f"REGISTER sip:{self.server};transport={self.CTS} SIP/2.0\r\n"
+                f"Via: SIP/2.0/{self.CTS} {ip}:{my_public_port};rport;branch={branch_id};alias\r\n"
+                f"Max-Forwards: 70\r\n"
+                f"From: <sip:{self.caller_id}@{self.server}>;tag={self.register_tags['local_tag']}\r\n"
+                f"To: <sip:{self.username}@{self.server}>\r\n"
+                f"Call-ID: {call_id}\r\n"
+                f"CSeq: {cseq} REGISTER\r\n"
+                f"Contact: <sip:{self.username}@{self.my_public_ip}:{my_public_port};transport={self.CTS}>{expires}\r\n"
+                f"{expires_field}"
+                f"Content-Length: 0\r\n\r\n"
+            )
+
+        # Debug: Log the REGISTER message (commented out for production)
+        # logger.log(logging.DEBUG, f"REGISTER message:\n{msg}")
+        return msg
+
+    def ok_generator(self, data_parsed: SipMessage):
+        peer_ip, peer_port = self.sip_core.get_extra_info("peername")
+        _, port = self.sip_core.get_extra_info("sockname")
+        my_public_ip = self.my_public_ip
+
+        msg = "SIP/2.0 200 OK\r\n"
+        msg += f"Via: {data_parsed.get_header('Via')}\r\n"
+
+        if data_parsed.method == "OPTIONS":
+            to_tag = self.sip_core.generate_tag()
+            msg += f"From: {data_parsed.get_header('From')}\r\n"
+            msg += f"To: <sip:{self.username}@{my_public_ip}>;tag={to_tag}\r\n"
+        else:
+            msg += f"From: <sip:{self.username}@{self.server}>;tag={data_parsed.from_tag}\r\n"
+            msg += (
+                f"To: <sip:{self.username}@{self.server}>;tag={data_parsed.to_tag}\r\n"
+            )
+
+        msg += f"Call-ID: {data_parsed.call_id}\r\n"
+        msg += f"CSeq: {data_parsed.cseq} {data_parsed.method}\r\n"
+        msg += f"Contact: <sip:{self.username}@{my_public_ip}:{port};transport={self.CTS.upper()}>\r\n"
+        msg += f"Allow: {', '.join(SIPCompatibleMethods)}\r\n"
+        msg += "Supported: replaces, timer\r\n"
+        msg += "Content-Length: 0\r\n\r\n"
+
+        return msg
+
+    async def ping(self):
+        # Generate OPTIONS message for keep-alive
+        options_message = self.build_options_message()
+        await self.sip_core.send(options_message)
+    
+    def build_options_message(self):
+        """Build OPTIONS message for keep-alive"""
+        _, port = self.sip_core.get_extra_info("sockname")
+        ip = self.my_public_ip or self.my_private_ip
+        
+        msg = f"OPTIONS sip:{self.server} SIP/2.0\r\n"
+        msg += f"Via: SIP/2.0/{self.CTS} {ip}:{port};rport;branch={self.sip_core.gen_branch()};alias\r\n"
+        msg += "Max-Forwards: 70\r\n"
+        msg += f"From: <sip:{self.caller_id}@{self.server}>;tag={self.sip_core.generate_tag()}\r\n"
+        msg += f"To: <sip:{self.username}@{self.server}>\r\n"
+        msg += f"Call-ID: {self.call_id}\r\n"
+        msg += f"CSeq: {next(self.register_counter)} OPTIONS\r\n"
+        msg += f"Contact: <sip:{self.username}@{ip}:{port};transport={self.CTS}>\r\n"
+        msg += f"Allow: {', '.join(SIPCompatibleMethods)}\r\n"
+        msg += "Supported: replaces, timer\r\n"
+        msg += "Content-Length: 0\r\n\r\n"
+        
+        return msg
+
+    async def reregister(self, auth, data):
+        msg = self.build_register_message(auth, data)
+
+        await self.sip_core.send(msg)
+        return
+
+    async def register(self):
+        """Register with retry logic"""
+        msg = self.build_register_message()
+        operation_id = f"REGISTER_{self.call_id}_{self.register_counter.current()}"
+
+        try:
+            # Send initial REGISTER message
+            await self.sip_core.send(msg)
+            
+            # Wait for registration to complete (either success or failure)
+            # The message handler will handle 401 responses and call reregister
+            # The registered future will be set when we get a 200 response
+            success = await asyncio.wait_for(self.registered, timeout=30.0)
+            
+            if success:
+                logger.log(
+                    logging.INFO,
+                    f"Sip Account: {self.username} registered to the server.",
+                )
+
+            return success
+
+        except asyncio.TimeoutError:
+            logger.error(f"Registration timed out for {self.username}")
+            if self.registered and not self.registered.done():
+                self.registered.set_result(False)
+            return False
+
+        except Exception as e:
+            logger.error(f"Registration failed for {self.username}: {str(e)}")
+            if self.registered and not self.registered.done():
+                self.registered.set_result(False)
+            return False
+
+    async def _send_register(self):
+        """Internal method to send register message"""
+        msg = self.build_register_message()
+        await self.sip_core.send(msg)
+
+    async def message_handler(self, msg: SipMessage):
+        # This is the main message handler inside the class
+        # its like other handlers outside the class that can
+        # be accessed with @:meth:`Client.on_message` the only
+        # difference is that its handled inside the :obj:`Client`
+        # and it's onlt for developer's usage. unlike other handlers
+        # it has no filters for now.
+        
+        # Debug: Log all received messages (commented out for production)
+        # logger.log(logging.DEBUG, f"Received SIP message: {msg.status} {msg.method} - {msg.data[:200]}...")
+        
+        to = msg.get_header("To")
+        if (
+            not msg.call_id == self.call_id and self.username not in to
+        ):  # Filter only current call
+            return  # These are just for extra check and not necessary
+
+        await asyncio.sleep(0.001)
+        if msg.status == SIPStatus(401) and msg.method == "REGISTER":
+            # This is the case when we have to send a re-register
+            await self.reregister(True, msg)
+            logger.log(logging.DEBUG, "Register message has been sent to the server")
+
+        elif msg.status == SIPStatus(200) and msg.method == "REGISTER":
+            # This is when we receive the response for the register
+            operation_id = f"REGISTER_{msg.call_id}_{msg.cseq}"
+            self.retry_handler.complete_operation(operation_id)
+
+            # Set registration as successful
+            if self.registered and not self.registered.done():
+                self.registered.set_result(True)
+
+            # In case the response is of Un-register we set this
+            if self.register_tags["type"] == "UNREGISTER":
+                if msg.cseq == self.register_tags["cseq"]:
+                    self.unregistered.set()
+
+        elif msg.data.startswith(
+            "OPTIONS"
+        ):  # If we recieve PING then PONG incase of keep-alive required
+            logger.log(
+                logging.DEBUG, "Keep-alive message received from the server. sending OK"
+            )
+            options_ok = self.ok_generator(msg)
+            await self.sip_core.send(options_ok)
+
+        elif msg.data.startswith("INVITE") and self.username in to:
+            incoming_call = SipCall(
+                self.username, self.password, self.server, "", sip_core=self.sip_core
+            )
+            for cb in self._get_callbacks("incoming_call_cb"):
+                incoming_call._register_callback("incoming_call_cb", cb)
+
+            await incoming_call.handle_incoming_call(msg)
+
+    def _register_callback(self, cb_type, cb):
+        self._callbacks.setdefault(cb_type, []).append(cb)
+
+    def _get_callbacks(self, cb_type):
+        return self._callbacks.get(cb_type, [])
+
+    def _remove_callback(self, cb_type, cb):
+        callbacks = self._callbacks.get(cb_type, [])
+        if cb in callbacks:
+            callbacks.remove(cb)
