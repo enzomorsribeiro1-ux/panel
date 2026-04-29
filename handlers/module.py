@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib'))
 import subprocess
 result = subprocess.run(['pip', 'show', 'PySIPio'], capture_output=True, text=True)
 print(result.stdout)
@@ -8,10 +11,6 @@ for p in sys.path:
         print('Found pysip at:', p)
     if os.path.exists(os.path.join(p, 'PySIP')):
         print('Found PySIP at:', p)
-         
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib'))
 import asyncio
 import random
 import logging
