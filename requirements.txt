@@ -4,7 +4,6 @@ edge-tts>=5.0.0
 python-dotenv>=0.19.0
 scipy
 PySIPio
-PySIP
 fastapi
 uvicorn
 pyngrok
