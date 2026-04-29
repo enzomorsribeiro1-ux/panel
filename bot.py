@@ -1,15 +1,12 @@
+import sys
 import os
-import json
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib'))import json
 import uuid
 import threading
 import asyncio
 import random
 import logging
 import datetime
-import sys
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib'))
 
 from fastapi import FastAPI, Request
 import uvicorn
