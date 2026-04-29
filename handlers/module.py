@@ -1,3 +1,14 @@
+import subprocess
+result = subprocess.run(['pip', 'show', 'PySIPio'], capture_output=True, text=True)
+print(result.stdout)
+import os
+pysip_path = None
+for p in sys.path:
+    if os.path.exists(os.path.join(p, 'pysip')):
+        print('Found pysip at:', p)
+    if os.path.exists(os.path.join(p, 'PySIP')):
+        print('Found PySIP at:', p)
+         
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib'))
