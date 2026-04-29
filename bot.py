@@ -7,6 +7,9 @@ import random
 import logging
 import datetime
 import sys
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib'))
 
 from fastapi import FastAPI, Request
 import uvicorn
@@ -24,7 +27,7 @@ from telegram.ext import (
 
 from handlers.payment import payment_handler
 
-try:
+try: 
      with open(
           "database/config.json",
           "r"
